@@ -1,0 +1,67 @@
+name: 'Slack Channel Management Action'
+description: 'Creates a private Slack channel for a GitHub issue (e.g. when labeled "slack") and invites a configured list of Slack users.'
+author: 'carlspring'
+branding:
+  icon: 'message-square'
+  color: 'purple'
+
+inputs:
+  slack-bot-token:
+    description: 'Slack Bot User OAuth token (xoxb-...). Needs channels:manage, groups:write, chat:write scopes.'
+    required: true
+  label:
+    description: 'GitHub issue label that triggers channel creation.'
+    required: false
+    default: 'slack'
+  channel-prefix:
+    description: 'Prefix used when building the channel name: <prefix>-<repo>-<issue-number>.'
+    required: false
+    default: ''
+  invite-user-ids:
+    description: 'Comma-separated list of Slack user IDs (e.g. U0123ABCD,U0456EFGH) to invite to the channel. Leave empty to invite no one.'
+    required: false
+    default: ''
+  private:
+    description: 'Whether the created channel should be private (true) or public (false).'
+    required: false
+    default: 'true'
+  post-comment:
+    description: 'Whether to post a comment back on the GitHub issue linking to the created channel.'
+    required: false
+    default: 'true'
+  github-token:
+    description: 'GitHub token used to post the issue comment. Required if post-comment is true.'
+    required: false
+    default: ''
+
+outputs:
+  channel-id:
+    description: 'Slack ID of the created (or pre-existing) channel.'
+    value: ${{ steps.create.outputs.channel-id }}
+  channel-name:
+    description: 'Name of the created (or pre-existing) channel.'
+    value: ${{ steps.create.outputs.channel-name }}
+  skipped:
+    description: '"true" if the action skipped channel creation because the trigger label was not present.'
+    value: ${{ steps.create.outputs.skipped }}
+
+runs:
+  using: 'composite'
+  steps:
+    - id: create
+      shell: bash
+      env:
+        SLACK_BOT_TOKEN: ${{ inputs.slack-bot-token }}
+        ISSUE_LABEL: ${{ inputs.label }}
+        CHANNEL_PREFIX: ${{ inputs.channel-prefix }}
+        INVITE_USER_IDS: ${{ inputs.invite-user-ids }}
+        CHANNEL_PRIVATE: ${{ inputs.private }}
+      run: python3 ${{ github.action_path }}/scripts/create_channel.py
+
+    - id: comment
+      if: inputs.post-comment == 'true' && steps.create.outputs.skipped != 'true'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        CHANNEL_NAME: ${{ steps.create.outputs.channel-name }}
+      run: python3 ${{ github.action_path }}/scripts/post_comment.py
