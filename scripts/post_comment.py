@@ -2,7 +2,7 @@
 """
 Posts a comment on the GitHub issue linking to the created Slack channel.
 
-Required env vars: GITHUB_TOKEN, CHANNEL_NAME
+Required env vars: GITHUB_TOKEN, CHANNEL_NAME, CHANNEL_URL (optional)
 Uses GITHUB_EVENT_PATH, GITHUB_API_URL and GITHUB_REPOSITORY, provided by GitHub Actions.
 """
 
@@ -16,6 +16,7 @@ import urllib.request
 def main() -> None:
     token = os.environ.get("GITHUB_TOKEN", "")
     channel_name = os.environ["CHANNEL_NAME"]
+    channel_url = os.environ.get("CHANNEL_URL", "").strip()
 
     if not token:
         print("::warning::post-comment is enabled but github-token was not provided; skipping comment.")
@@ -30,7 +31,13 @@ def main() -> None:
     repo = os.environ["GITHUB_REPOSITORY"]
 
     url = f"{api_url}/repos/{repo}/issues/{issue_num}/comments"
-    payload = json.dumps({"body": f"Slack channel created: #{channel_name}"}).encode("utf-8")
+
+    if channel_url:
+        body = f"Slack channel created: [#{channel_name}]({channel_url})"
+    else:
+        body = f"Slack channel created: #{channel_name}"
+
+    payload = json.dumps({"body": body}).encode("utf-8")
 
     req = urllib.request.Request(
         url,

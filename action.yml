@@ -7,7 +7,7 @@ branding:
 
 inputs:
   slack-bot-token:
-    description: 'Slack Bot User OAuth token (xoxb-...). Needs channels:manage, groups:write, chat:write scopes.'
+    description: 'Slack Bot User OAuth token (xoxb-...). Needs channels:manage, groups:write, chat:write, users:read scopes.'
     required: true
   label:
     description: 'GitHub issue label that triggers channel creation.'
@@ -41,6 +41,9 @@ outputs:
   channel-name:
     description: 'Name of the created (or pre-existing) channel.'
     value: ${{ steps.create.outputs.channel-name }}
+  channel-url:
+    description: 'Clickable URL to the created (or pre-existing) Slack channel.'
+    value: ${{ steps.create.outputs.channel-url }}
   skipped:
     description: '"true" if the action skipped channel creation because the trigger label was not present.'
     value: ${{ steps.create.outputs.skipped }}
@@ -64,4 +67,5 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         CHANNEL_NAME: ${{ steps.create.outputs.channel-name }}
+        CHANNEL_URL: ${{ steps.create.outputs.channel-url }}
       run: python3 ${{ github.action_path }}/scripts/post_comment.py

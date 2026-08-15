@@ -28,7 +28,7 @@ e.g. `ol-my-repo-42`, or just `my-repo-42` if `channel-prefix` is left blank
    - `channels:manage` — create public channels
    - `groups:write` — create private channels (needed since `private` defaults to `true`)
    - `chat:write` — post the confirmation message
-   - `users:read` — look up user IDs from full names passed to `invite-user-ids`
+   - `users:read` — look up user IDs from full names passed to `invite-user-ids`, and build the clickable channel link (`auth.test`)
 3. Copy the Bot User OAuth Token (`xoxb-...`).
 
 If you add scopes to an app that's already installed, you must click
@@ -81,6 +81,7 @@ accordingly, or point at a commit SHA while developing.
 |----------------|--------------------------------------------------------------|
 | `channel-id`   | Slack ID of the created (or pre-existing) channel.          |
 | `channel-name` | Name of the created (or pre-existing) channel.               |
+| `channel-url`  | Clickable URL to the channel (used to link it in the issue comment). |
 | `skipped`      | `"true"` if the run skipped because the label wasn't present.|
 
 ## Requirements
@@ -103,3 +104,8 @@ accordingly, or point at a commit SHA while developing.
   display name, real name, and username. If your workspace has two people
   with identical display names, disambiguate by using their Slack user ID
   instead.
+- The issue comment links directly to the channel (e.g. `[#ol-my-repo-42](https://myteam.slack.com/archives/C0123ABCD)`).
+  The link is built from your workspace's domain via `auth.test`, so
+  clicking it opens the channel straight in Slack. If `auth.test` fails for
+  any reason, the comment falls back to plain text (`#channel-name`)
+  instead of failing the whole run.

@@ -124,6 +124,21 @@ def resolve_invitees(token: str, raw_entries: list[str]) -> list[str]:
     return resolved
 
 
+def get_workspace_url(token: str) -> str:
+    """Return the workspace's base URL (e.g. 'https://myteam.slack.com/') via auth.test."""
+    result = slack_get(token, "auth.test", {})
+    if not result.get("ok"):
+        print(f"::warning::Slack API error calling auth.test: {result.get('error')}; channel link will be omitted.")
+        return ""
+    return result.get("url", "")
+
+
+def build_channel_url(workspace_url: str, channel_id: str) -> str:
+    if not workspace_url:
+        return ""
+    return f"{workspace_url.rstrip('/')}/archives/{channel_id}"
+
+
 def sanitize(value: str) -> str:
     """Lowercase and replace anything outside [a-z0-9-] with a hyphen, per Slack's channel naming rules."""
     value = value.lower()
@@ -215,6 +230,9 @@ def main() -> None:
 
     print(f"Channel ID: {channel_id}")
 
+    workspace_url = get_workspace_url(token)
+    channel_url = build_channel_url(workspace_url, channel_id)
+
     if invite_user_ids:
         raw_entries = invite_user_ids.split(",")
         resolved_ids = resolve_invitees(token, raw_entries)
@@ -240,6 +258,7 @@ def main() -> None:
 
     write_output("channel-id", channel_id)
     write_output("channel-name", channel_name)
+    write_output("channel-url", channel_url)
     write_output("skipped", "false")
 
 
