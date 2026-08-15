@@ -32,10 +32,7 @@ def main() -> None:
 
     url = f"{api_url}/repos/{repo}/issues/{issue_num}/comments"
 
-    if channel_url:
-        body = f"Slack channel archived: [#{channel_name}]({channel_url})"
-    else:
-        body = f"Slack channel archived: #{channel_name}"
+    body = f"Slack channel archived."
 
     payload = json.dumps({"body": body}).encode("utf-8")
 
