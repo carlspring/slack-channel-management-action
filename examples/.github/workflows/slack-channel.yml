@@ -16,6 +16,7 @@ jobs:
         with:
           slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
           label: slack
+          archive-label: ${{ vars.SLACK_ARCHIVE_LABEL || 'slack:archived' }}
           channel-prefix: ${{ vars.SLACK_CHANNEL_PREFIX }}       # e.g. "ol"
           invite-user-ids: ${{ vars.SLACK_INVITE_USER_IDS }}     # e.g. "U0123ABCD,@Martin Todorov"
           private: true

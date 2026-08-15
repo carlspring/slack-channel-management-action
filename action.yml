@@ -1,5 +1,5 @@
 name: 'Slack Channel Management Action'
-description: 'Creates a private Slack channel for a GitHub issue (e.g. when labeled "slack") and invites a configured list of Slack users.'
+description: 'Creates a private Slack channel for a GitHub issue (e.g. when labeled "slack"), invites configured Slack users, and archives the channel when a configured archive label is applied.'
 author: 'carlspring'
 branding:
   icon: 'message-square'
@@ -13,8 +13,12 @@ inputs:
     description: 'GitHub issue label that triggers channel creation.'
     required: false
     default: 'slack'
+  archive-label:
+    description: 'GitHub issue label that triggers archiving the channel. The channel is located by reconstructing its name from channel-prefix/repo/issue-number, so no stored state is needed.'
+    required: false
+    default: 'slack:archived'
   channel-prefix:
-    description: 'Optional prefix used when building the channel name: <prefix>-<repo>-<issue-number> (or just <repo>-<issue-number> if left blank).'
+    description: 'Optional prefix used when building the channel name: <prefix>-<repo>-<issue-number> (or just <repo>-<issue-number> if left blank). Must match whatever was used at creation time, so archiving can find the right channel.'
     required: false
     default: ''
   invite-user-ids:
@@ -26,11 +30,11 @@ inputs:
     required: false
     default: 'true'
   post-comment:
-    description: 'Whether to post a comment back on the GitHub issue linking to the created channel.'
+    description: 'Whether to post a comment back on the GitHub issue when the channel is created or archived.'
     required: false
     default: 'true'
   github-token:
-    description: 'GitHub token used to post the issue comment. Required if post-comment is true.'
+    description: 'GitHub token used to post issue comments. Required if post-comment is true.'
     required: false
     default: ''
 
@@ -47,6 +51,15 @@ outputs:
   skipped:
     description: '"true" if the action skipped channel creation because the trigger label was not present.'
     value: ${{ steps.create.outputs.skipped }}
+  archived-channel-id:
+    description: 'Slack ID of the archived channel, if archiving ran.'
+    value: ${{ steps.archive.outputs.channel-id }}
+  archived-channel-name:
+    description: 'Name of the archived channel, if archiving ran.'
+    value: ${{ steps.archive.outputs.channel-name }}
+  archive-skipped:
+    description: '"true" if archiving was skipped (archive label not present/not just added, or no matching channel found).'
+    value: ${{ steps.archive.outputs.skipped }}
 
 runs:
   using: 'composite'
@@ -69,3 +82,21 @@ runs:
         CHANNEL_NAME: ${{ steps.create.outputs.channel-name }}
         CHANNEL_URL: ${{ steps.create.outputs.channel-url }}
       run: python3 ${{ github.action_path }}/scripts/post_comment.py
+
+    - id: archive
+      shell: bash
+      env:
+        SLACK_BOT_TOKEN: ${{ inputs.slack-bot-token }}
+        ARCHIVE_LABEL: ${{ inputs.archive-label }}
+        CHANNEL_PREFIX: ${{ inputs.channel-prefix }}
+      run: python3 ${{ github.action_path }}/scripts/archive_channel.py
+
+    - id: archive-comment
+      if: inputs.post-comment == 'true' && steps.archive.outputs.skipped != 'true'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        CHANNEL_NAME: ${{ steps.archive.outputs.channel-name }}
+        CHANNEL_URL: ${{ steps.archive.outputs.channel-url }}
+      run: python3 ${{ github.action_path }}/scripts/post_archive_comment.py
+
