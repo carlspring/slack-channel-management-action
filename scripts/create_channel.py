@@ -45,6 +45,85 @@ def slack_get(token: str, method: str, params: dict) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
+USER_ID_RE = re.compile(r"^[UW][A-Z0-9]{6,}$")
+
+
+def is_user_id(value: str) -> bool:
+    """Slack user (and some workspace-admin) IDs look like U0123ABCD or W0123ABCD."""
+    return bool(USER_ID_RE.match(value.strip()))
+
+
+def normalize_name(value: str) -> str:
+    """Strip an optional leading '@' and surrounding whitespace, lowercase for matching."""
+    return value.strip().lstrip("@").strip().lower()
+
+
+def fetch_all_users(token: str) -> list[dict]:
+    """Fetch the full workspace member list (paginated) for name-based lookups."""
+    members: list[dict] = []
+    cursor = ""
+    while True:
+        params = {"limit": "200"}
+        if cursor:
+            params["cursor"] = cursor
+        result = slack_get(token, "users.list", params)
+        if not result.get("ok"):
+            print(f"::error::Slack API error listing users: {result.get('error')}")
+            sys.exit(1)
+
+        members.extend(result.get("members", []))
+        cursor = result.get("response_metadata", {}).get("next_cursor", "")
+        if not cursor:
+            return members
+
+
+def resolve_invitees(token: str, raw_entries: list[str]) -> list[str]:
+    """
+    Resolve a mixed list of Slack user IDs and human names (e.g. "@Martin Todorov",
+    "Martin Todorov", or a bare username) into Slack user IDs.
+    """
+    entries = [e.strip() for e in raw_entries if e.strip()]
+    if not entries:
+        return []
+
+    ids = [e for e in entries if is_user_id(e)]
+    name_entries = [e for e in entries if not is_user_id(e)]
+
+    resolved = list(ids)
+
+    if name_entries:
+        directory = fetch_all_users(token)
+
+        # Build lookup maps: normalized real name / display name / username -> id
+        by_name: dict[str, str] = {}
+        for member in directory:
+            if member.get("deleted"):
+                continue
+            profile = member.get("profile", {})
+            candidates = {
+                member.get("name", ""),
+                member.get("real_name", ""),
+                profile.get("display_name", ""),
+                profile.get("real_name", ""),
+                profile.get("display_name_normalized", ""),
+                profile.get("real_name_normalized", ""),
+            }
+            for candidate in candidates:
+                if candidate:
+                    by_name[candidate.strip().lower()] = member["id"]
+
+        for entry in name_entries:
+            key = normalize_name(entry)
+            user_id = by_name.get(key)
+            if user_id:
+                print(f"Resolved '{entry}' -> {user_id}")
+                resolved.append(user_id)
+            else:
+                print(f"::warning::Could not resolve Slack user for '{entry}', skipping invite for this entry.")
+
+    return resolved
+
+
 def sanitize(value: str) -> str:
     """Lowercase and replace anything outside [a-z0-9-] with a hyphen, per Slack's channel naming rules."""
     value = value.lower()
@@ -83,7 +162,7 @@ def find_existing_channel_id(token: str, name: str) -> str | None:
 def main() -> None:
     token = os.environ["SLACK_BOT_TOKEN"]
     issue_label = os.environ["ISSUE_LABEL"]
-    channel_prefix = os.environ.get("CHANNEL_PREFIX", "")
+    channel_prefix = os.environ.get("CHANNEL_PREFIX", "").strip()
     invite_user_ids = os.environ.get("INVITE_USER_IDS", "").strip()
     is_private = os.environ.get("CHANNEL_PRIVATE", "true").lower() != "false"
 
@@ -106,9 +185,13 @@ def main() -> None:
     issue_title = event["issue"]["title"]
     issue_url = event["issue"]["html_url"]
 
-    safe_prefix = sanitize(channel_prefix)
     safe_repo = sanitize(repo_name)
-    channel_name = f"{safe_prefix}-{safe_repo}-{issue_num}"[:80]
+    if channel_prefix:
+        safe_prefix = sanitize(channel_prefix)
+        channel_name = f"{safe_prefix}-{safe_repo}-{issue_num}"
+    else:
+        channel_name = f"{safe_repo}-{issue_num}"
+    channel_name = channel_name[:80]
 
     print(f"Creating Slack channel '{channel_name}' (private={is_private})...")
 
@@ -133,15 +216,21 @@ def main() -> None:
     print(f"Channel ID: {channel_id}")
 
     if invite_user_ids:
-        print(f"Inviting users: {invite_user_ids}")
-        invite_resp = slack_post(
-            token, "conversations.invite", {"channel": channel_id, "users": invite_user_ids}
-        )
-        if not invite_resp.get("ok"):
-            error = invite_resp.get("error")
-            # already_in_channel isn't fatal (e.g. re-run on the same issue)
-            if error != "already_in_channel":
-                print(f"::warning::Slack API error inviting users: {error}")
+        raw_entries = invite_user_ids.split(",")
+        resolved_ids = resolve_invitees(token, raw_entries)
+
+        if not resolved_ids:
+            print("::warning::No invitees could be resolved to Slack user IDs; skipping invite step.")
+        else:
+            print(f"Inviting users: {', '.join(resolved_ids)}")
+            invite_resp = slack_post(
+                token, "conversations.invite", {"channel": channel_id, "users": ",".join(resolved_ids)}
+            )
+            if not invite_resp.get("ok"):
+                error = invite_resp.get("error")
+                # already_in_channel isn't fatal (e.g. re-run on the same issue)
+                if error != "already_in_channel":
+                    print(f"::warning::Slack API error inviting users: {error}")
 
     slack_post(
         token,

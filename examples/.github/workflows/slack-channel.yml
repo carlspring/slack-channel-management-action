@@ -17,7 +17,7 @@ jobs:
           slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
           label: slack
           channel-prefix: ${{ vars.SLACK_CHANNEL_PREFIX }}       # e.g. "ol"
-          invite-user-ids: ${{ vars.SLACK_INVITE_USER_IDS }}     # e.g. "U0123ABCD,U0456EFGH"
+          invite-user-ids: ${{ vars.SLACK_INVITE_USER_IDS }}     # e.g. "U0123ABCD,@Martin Todorov"
           private: true
           post-comment: true
           github-token: ${{ secrets.GITHUB_TOKEN }}

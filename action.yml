@@ -14,11 +14,11 @@ inputs:
     required: false
     default: 'slack'
   channel-prefix:
-    description: 'Prefix used when building the channel name: <prefix>-<repo>-<issue-number>.'
+    description: 'Optional prefix used when building the channel name: <prefix>-<repo>-<issue-number> (or just <repo>-<issue-number> if left blank).'
     required: false
     default: ''
   invite-user-ids:
-    description: 'Comma-separated list of Slack user IDs (e.g. U0123ABCD,U0456EFGH) to invite to the channel. Leave empty to invite no one.'
+    description: 'Comma-separated list of people to invite to the channel. Each entry can be a Slack user ID (e.g. U0123ABCD) or a full name (e.g. "@Martin Todorov" or "Martin Todorov") — names are resolved to user IDs automatically via the Slack directory. Leave empty to invite no one.'
     required: false
     default: ''
   private:
