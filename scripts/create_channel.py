@@ -14,6 +14,7 @@ import urllib.error
 from slack_common import (
     build_channel_name,
     build_channel_url,
+    build_issue_reference,
     find_existing_channel_id,
     get_workspace_url,
     label_triggered,
@@ -87,10 +88,17 @@ def main() -> None:
                 if error != "already_in_channel":
                     print(f"::warning::Slack API error inviting users: {error}")
 
+    issue_reference = build_issue_reference(issue_num, issue_title, issue_url)
+
+    # Slack topics are capped at 250 chars; truncate defensively for very long titles.
+    topic_resp = slack_post(token, "conversations.setTopic", {"channel": channel_id, "topic": issue_reference[:250]})
+    if not topic_resp.get("ok"):
+        print(f"::warning::Slack API error setting channel topic: {topic_resp.get('error')}")
+
     slack_post(
         token,
         "chat.postMessage",
-        {"channel": channel_id, "text": f"Created for <{issue_url}|#{issue_num}: {issue_title}>"},
+        {"channel": channel_id, "text": issue_reference},
     )
 
     write_output("channel-id", channel_id)

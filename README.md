@@ -128,6 +128,14 @@ accordingly, or point at a commit SHA while developing.
   clicking it opens the channel straight in Slack. If `auth.test` fails for
   any reason, the comment falls back to plain text (`#channel-name`)
   instead of failing the whole run.
+- On creation, the channel's **topic** is set to a clickable link back to
+  the issue in the form `#1234 : Fix this and that`, and the same text is
+  posted as the channel's first message. This replaces the generic
+  "Created for #12: test 11" wording with something that actually tells you
+  which issue the channel is for, and stays visible in the channel header
+  (not just buried at the top of history). If setting the topic fails for
+  any reason (e.g. a scope issue), it's a warning, not a hard failure — the
+  channel and message still get created.
 - Create and archive only fire on the specific label that was just added,
   not just "is this label present anywhere on the issue" — so applying
   `slack:archived` to an issue that also carries `slack` won't re-trigger

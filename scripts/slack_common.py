@@ -128,6 +128,11 @@ def sanitize(value: str) -> str:
     return value
 
 
+def build_issue_reference(issue_num: int, issue_title: str, issue_url: str) -> str:
+    """Build a Slack mrkdwn link like '<url|#1234 : Fix this and that>'."""
+    return f"<{issue_url}|#{issue_num} : {issue_title}>"
+
+
 def build_channel_name(channel_prefix: str, repo_name: str, issue_num: int) -> str:
     """Build the deterministic channel name for a given repo/issue, matching creation logic."""
     safe_repo = sanitize(repo_name)
