@@ -3,14 +3,17 @@
 A composite GitHub Action that creates a (private, by default) Slack channel
 whenever an issue is labeled (default label: `slack`), invites a configured
 list of Slack users, archives that channel again when a second label is
-applied (default: `slack:archived`), and optionally comments back on the
-issue in both cases.
+applied (default: `slack:archived`), relays PR-opened / new-comment /
+issue-edited activity on the issue into that channel, and optionally
+comments back on the GitHub issue when the channel is created or archived.
 
 Logic is implemented in Python (`scripts/create_channel.py`,
-`scripts/archive_channel.py`, `scripts/slack_common.py`,
-`scripts/post_comment.py`, `scripts/post_archive_comment.py`), using only
-the standard library (`urllib`, `json`) — no `pip install` step needed,
-since `python3` is preinstalled on GitHub-hosted runners.
+`scripts/archive_channel.py`, `scripts/notify_pr_opened.py`,
+`scripts/notify_issue_comment.py`, `scripts/notify_issue_edited.py`,
+`scripts/slack_common.py`, `scripts/post_comment.py`,
+`scripts/post_archive_comment.py`), using only the standard library
+(`urllib`, `json`) — no `pip install` step needed, since `python3` is
+preinstalled on GitHub-hosted runners.
 
 Channel names follow the pattern:
 
@@ -32,6 +35,38 @@ creating and archiving a given channel. If no matching channel is found
 (e.g. it was already renamed or deleted, or the create label was never
 applied), archiving is skipped with a `::warning::` rather than failing the
 run.
+
+### Activity notifications
+
+Three more triggers relay GitHub activity on an issue into its Slack
+channel, once that channel exists. All three locate the channel the same
+way archiving does (rebuild the deterministic name, look it up) and quietly
+no-op — no warning — if no matching channel is found, since most issues in
+a repo won't have one.
+
+- **Pull request opened** (`pull_request: opened`) — if the PR's title or
+  body references an issue (a closing keyword like `fixes #42`/`closes
+  #42`/`resolves #42`, or failing that, a bare `#42`), a message is posted
+  naming the PR author and linking to the PR:
+  > 🔀 @githubUserXYZ opened a pull request for this issue: #55 : Fix login crash
+- **Comment posted** (`issue_comment: created`, on issues only — not PR
+  review comments) — the comment is quoted in full (truncated past 600
+  characters) with a link to it and the commenter's GitHub profile:
+  > 💬 @janedoe commented:
+  > > I think this is a race condition and needs a mutex.
+
+  Comments from bots (including this action's own "channel created/archived"
+  comments) are skipped by default — set `ignore-bot-comments: false` to
+  include them.
+- **Issue edited** (`issues: edited`) — if the title and/or description
+  changed, a summary is posted with a link back to the issue:
+  > Issue #42 was updated:
+  > • Title: ~Fix login crash~ → *Fix login crash on retry*
+  > • Description was edited.
+
+None of these need any Slack scope beyond `chat:write`, which you already
+have for the creation message. They do need the corresponding event types
+added to your workflow's `on:` block — see `examples/.github/workflows/slack-channel.yml`.
 
 ## Setup
 
@@ -74,9 +109,26 @@ In the repo where issues are filed (Settings → Secrets and variables → Actio
 ### 3. Add the workflow
 
 Copy `examples/.github/workflows/slack-channel.yml` into the consuming repo's
-`.github/workflows/` directory. It references this action as
-`carlspring/slack-channel-management-action@v1` — tag/publish this repo
-accordingly, or point at a commit SHA while developing.
+`.github/workflows/` directory. Its `on:` block covers every trigger this
+action uses:
+
+```yaml
+on:
+  issues:
+    types: [opened, labeled, edited]
+  pull_request:
+    types: [opened]
+  issue_comment:
+    types: [created]
+```
+
+If you only want channel creation/archiving and don't need the activity
+notifications, you can drop the `pull_request` and `issue_comment` triggers
+(and `edited` from `issues`) — the corresponding steps simply won't run.
+
+It references this action as `carlspring/slack-channel-management-action@v1`
+— tag/publish this repo accordingly, or point at a commit SHA while
+developing.
 
 ## Inputs
 
@@ -89,6 +141,7 @@ accordingly, or point at a commit SHA while developing.
 | `invite-user-ids`   | no       | `""`     | Comma-separated list of Slack user IDs and/or full names (e.g. `@Martin Todorov`) to invite. Names are resolved to IDs automatically. |
 | `private`           | no       | `true`   | Create a private channel (restricts access to invited users only).          |
 | `post-comment`      | no       | `true`   | Comment back on the issue when the channel is created or archived.          |
+| `ignore-bot-comments` | no     | `true`   | Skip relaying issue comments authored by bots to Slack.                     |
 | `github-token`      | no       | `""`     | Token used to post the issue comment (required if `post-comment` is `true`). |
 
 ## Outputs
@@ -150,3 +203,12 @@ accordingly, or point at a commit SHA while developing.
   channel and re-run.
 - Archiving is one-way in this action; there's no "unarchive" input. Slack
   itself still lets you unarchive manually from the channel's settings.
+- The three activity-notification steps (PR opened, comment posted, issue
+  edited) are best-effort: unlike channel creation/archiving, a Slack API
+  error there logs a `::warning::` and moves on rather than failing the
+  job, since they're a secondary layer on top of the core create/archive
+  behavior.
+- The PR-to-issue link is inferred from the PR's title/body text, not from
+  any GitHub API relationship — GitHub doesn't expose "which issue does
+  this PR close" directly in the `pull_request` webhook payload. A PR that
+  doesn't mention the issue number anywhere won't trigger a notification.

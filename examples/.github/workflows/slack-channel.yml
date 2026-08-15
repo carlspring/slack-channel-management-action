@@ -1,17 +1,21 @@
-name: Create Slack channel for labeled issues
+name: Slack channel management for issues
 
 on:
   issues:
-    types: [opened, labeled]
+    types: [opened, labeled, edited]
+  pull_request:
+    types: [opened]
+  issue_comment:
+    types: [created]
 
 permissions:
   issues: write   # only needed if post-comment is left enabled
 
 jobs:
-  create-slack-channel:
+  slack-channel-management:
     runs-on: ubuntu-latest
     steps:
-      - name: Create Slack channel and invite team
+      - name: Manage Slack channel for this issue
         uses: carlspring/slack-channel-management-action@v1
         with:
           slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -21,4 +25,5 @@ jobs:
           invite-user-ids: ${{ vars.SLACK_INVITE_USER_IDS }}     # e.g. "U0123ABCD,@Martin Todorov"
           private: true
           post-comment: true
+          ignore-bot-comments: true
           github-token: ${{ secrets.GITHUB_TOKEN }}

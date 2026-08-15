@@ -128,9 +128,36 @@ def sanitize(value: str) -> str:
     return value
 
 
+def escape_slack_text(text: str | None) -> str:
+    """Escape Slack mrkdwn's reserved characters (&, <, >) in user-supplied text."""
+    if not text:
+        return ""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def build_issue_reference(issue_num: int, issue_title: str, issue_url: str) -> str:
     """Build a Slack mrkdwn link like '<url|#1234 : Fix this and that>'."""
-    return f"<{issue_url}|#{issue_num} : {issue_title}>"
+    return f"<{issue_url}|#{issue_num} : {escape_slack_text(issue_title)}>"
+
+
+CLOSING_KEYWORD_RE = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b", re.IGNORECASE)
+ANY_ISSUE_REF_RE = re.compile(r"#(\d+)\b")
+
+
+def extract_referenced_issue_number(*texts: str | None) -> int | None:
+    """
+    Find the issue number a PR is for, by scanning its title/body.
+    Prefers GitHub closing keywords ("fixes #123", "closes #123", ...);
+    falls back to the first bare "#123" reference if no keyword match is found.
+    """
+    combined = "\n".join(t for t in texts if t)
+    match = CLOSING_KEYWORD_RE.search(combined)
+    if match:
+        return int(match.group(1))
+    match = ANY_ISSUE_REF_RE.search(combined)
+    if match:
+        return int(match.group(1))
+    return None
 
 
 def build_channel_name(channel_prefix: str, repo_name: str, issue_num: int) -> str:

@@ -1,5 +1,5 @@
 name: 'Slack Channel Management Action'
-description: 'Creates a private Slack channel for a GitHub issue (e.g. when labeled "slack"), invites configured Slack users, and archives the channel when a configured archive label is applied.'
+description: 'Creates a private Slack channel for a GitHub issue (e.g. when labeled "slack"), invites configured Slack users, archives the channel when a configured archive label is applied, and relays PR-opened / comment / edit activity on the issue into that channel.'
 author: 'carlspring'
 branding:
   icon: 'message-square'
@@ -37,6 +37,10 @@ inputs:
     description: 'GitHub token used to post issue comments. Required if post-comment is true.'
     required: false
     default: ''
+  ignore-bot-comments:
+    description: 'Whether to skip relaying issue comments authored by bots (including this action''s own "channel created/archived" comments) to Slack.'
+    required: false
+    default: 'true'
 
 outputs:
   channel-id:
@@ -99,4 +103,29 @@ runs:
         CHANNEL_NAME: ${{ steps.archive.outputs.channel-name }}
         CHANNEL_URL: ${{ steps.archive.outputs.channel-url }}
       run: python3 ${{ github.action_path }}/scripts/post_archive_comment.py
+
+    - id: notify-pr
+      if: github.event_name == 'pull_request' && github.event.action == 'opened'
+      shell: bash
+      env:
+        SLACK_BOT_TOKEN: ${{ inputs.slack-bot-token }}
+        CHANNEL_PREFIX: ${{ inputs.channel-prefix }}
+      run: python3 ${{ github.action_path }}/scripts/notify_pr_opened.py
+
+    - id: notify-comment
+      if: github.event_name == 'issue_comment' && github.event.action == 'created'
+      shell: bash
+      env:
+        SLACK_BOT_TOKEN: ${{ inputs.slack-bot-token }}
+        CHANNEL_PREFIX: ${{ inputs.channel-prefix }}
+        IGNORE_BOT_COMMENTS: ${{ inputs.ignore-bot-comments }}
+      run: python3 ${{ github.action_path }}/scripts/notify_issue_comment.py
+
+    - id: notify-edit
+      if: github.event_name == 'issues' && github.event.action == 'edited'
+      shell: bash
+      env:
+        SLACK_BOT_TOKEN: ${{ inputs.slack-bot-token }}
+        CHANNEL_PREFIX: ${{ inputs.channel-prefix }}
+      run: python3 ${{ github.action_path }}/scripts/notify_issue_edited.py
 
