@@ -12,8 +12,9 @@ and archive_channel.py, it always runs and always writes the 'skipped'
 output itself. A step-level 'if:' would leave 'skipped' unset (not 'true')
 whenever the condition was false, which the downstream unarchive-comment
 step's 'steps.unarchive.outputs.skipped != 'true'' check would misread as
-"ran successfully" — that's what caused a blank "Slack channel unarchived: #"
-comment on issues that were merely opened, not reopened.
+"ran successfully" — that's what previously caused a blank
+"Slack channel unarchived: #" comment on issues that were merely opened,
+not reopened.
 """
 
 import os
