@@ -220,6 +220,14 @@ developing.
   the channel automatically (unless `unarchive-on-reopen: false`). Slack
   itself also still lets you unarchive manually from the channel's
   settings at any time.
+- `create`, `archive`, and `unarchive` all run on every trigger and decide
+  internally whether to act, rather than being conditionally skipped at the
+  step level — a step that GitHub Actions skips outright leaves its outputs
+  undefined, and undefined isn't `'true'`, which would trick a downstream
+  step's `steps.x.outputs.skipped != 'true'` check into thinking it should
+  proceed. (Concretely: this is why unarchiving is *not* gated by a
+  step-level `if: github.event.action == 'reopened'` — that pattern caused
+  the "channel unarchived" comment to fire on ordinary issue creation.)
 - The three activity-notification steps (PR opened, comment posted, issue
   edited) are best-effort: unlike channel creation/archiving, a Slack API
   error there logs a `::warning::` and moves on rather than failing the

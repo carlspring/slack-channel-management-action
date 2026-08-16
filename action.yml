@@ -118,11 +118,11 @@ runs:
       run: python3 ${{ github.action_path }}/scripts/post_archive_comment.py
 
     - id: unarchive
-      if: github.event_name == 'issues' && github.event.action == 'reopened' && inputs.unarchive-on-reopen == 'true'
       shell: bash
       env:
         SLACK_BOT_TOKEN: ${{ inputs.slack-bot-token }}
         CHANNEL_PREFIX: ${{ inputs.channel-prefix }}
+        UNARCHIVE_ON_REOPEN: ${{ inputs.unarchive-on-reopen }}
       run: python3 ${{ github.action_path }}/scripts/unarchive_channel.py
 
     - id: unarchive-comment

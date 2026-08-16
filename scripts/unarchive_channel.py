@@ -4,8 +4,16 @@ Unarchives the Slack channel matching a GitHub issue when that issue is
 reopened (action: "reopened").
 
 Required env vars (set by action.yml):
-    SLACK_BOT_TOKEN, CHANNEL_PREFIX
+    SLACK_BOT_TOKEN, CHANNEL_PREFIX, UNARCHIVE_ON_REOPEN
 Uses GITHUB_EVENT_PATH and GITHUB_OUTPUT, both provided automatically by GitHub Actions.
+
+Deliberately has no step-level 'if:' in action.yml — like create_channel.py
+and archive_channel.py, it always runs and always writes the 'skipped'
+output itself. A step-level 'if:' would leave 'skipped' unset (not 'true')
+whenever the condition was false, which the downstream unarchive-comment
+step's 'steps.unarchive.outputs.skipped != 'true'' check would misread as
+"ran successfully" — that's what caused a blank "Slack channel unarchived: #"
+comment on issues that were merely opened, not reopened.
 """
 
 import os
@@ -26,15 +34,25 @@ from slack_common import (
 def main() -> None:
     token = os.environ["SLACK_BOT_TOKEN"]
     channel_prefix = os.environ.get("CHANNEL_PREFIX", "").strip()
+    unarchive_on_reopen = os.environ.get("UNARCHIVE_ON_REOPEN", "true").lower() != "false"
 
     event = load_event()
 
-    if event.get("action") != "reopened":
-        print("Issue action is not 'reopened', skipping unarchive.")
+    if not unarchive_on_reopen:
         write_output("skipped", "true")
         return
 
-    issue = event.get("issue") or {}
+    if event.get("action") != "reopened":
+        write_output("skipped", "true")
+        return
+
+    if "issue" not in event:
+        # A pull_request can also be "reopened"; its payload has no top-level
+        # "issue" key, so this isn't the event we're here for.
+        write_output("skipped", "true")
+        return
+
+    issue = event["issue"]
     if "pull_request" in issue:
         write_output("skipped", "true")
         return  # this is a PR being reopened, not an issue
