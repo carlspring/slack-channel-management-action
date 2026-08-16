@@ -3,17 +3,15 @@
 A composite GitHub Action that creates a (private, by default) Slack channel
 whenever an issue is labeled (default label: `slack`), invites a configured
 list of Slack users, archives that channel again when a second label is
-applied (default: `slack:archived`), unarchives it again if the issue is
-reopened, relays PR-opened / new-comment / issue-edited activity on the
-issue into that channel, and optionally comments back on the GitHub issue
-when the channel is created, archived, or unarchived.
+applied (default: `slack:archived`), relays PR-opened / new-comment /
+issue-edited activity on the issue into that channel, and optionally
+comments back on the GitHub issue when the channel is created or archived.
 
 Logic is implemented in Python (`scripts/create_channel.py`,
-`scripts/archive_channel.py`, `scripts/unarchive_channel.py`,
-`scripts/notify_pr_opened.py`, `scripts/notify_issue_comment.py`,
-`scripts/notify_issue_edited.py`, `scripts/slack_common.py`,
-`scripts/post_comment.py`, `scripts/post_archive_comment.py`,
-`scripts/post_reopen_comment.py`), using only the standard library
+`scripts/archive_channel.py`, `scripts/notify_pr_opened.py`,
+`scripts/notify_issue_comment.py`, `scripts/notify_issue_edited.py`,
+`scripts/slack_common.py`, `scripts/post_comment.py`,
+`scripts/post_archive_comment.py`), using only the standard library
 (`urllib`, `json`) — no `pip install` step needed, since `python3` is
 preinstalled on GitHub-hosted runners.
 
@@ -37,14 +35,6 @@ creating and archiving a given channel. If no matching channel is found
 (e.g. it was already renamed or deleted, or the create label was never
 applied), archiving is skipped with a `::warning::` rather than failing the
 run.
-
-### Unarchiving on reopen
-
-If the issue is reopened (`issues: reopened`), the same lookup finds the
-channel and calls `conversations.unarchive` on it, then posts "Issue
-reopened" as a message in the channel. If no matching channel is found
-(e.g. it was never created, or was deleted), this quietly no-ops. Set
-`unarchive-on-reopen: false` to disable this behavior.
 
 ### Activity notifications
 
@@ -84,8 +74,8 @@ added to your workflow's `on:` block — see `examples/.github/workflows/slack-c
 
 1. Create an app at https://api.slack.com/apps and install it to your workspace.
 2. Add these Bot Token scopes:
-   - `channels:manage` — create public channels, and archive/unarchive them
-   - `groups:write` — create private channels (needed since `private` defaults to `true`), and archive/unarchive them
+   - `channels:manage` — create public channels, and archive them
+   - `groups:write` — create private channels (needed since `private` defaults to `true`), and archive them
    - `chat:write` — post the confirmation message
    - `users:read` — look up user IDs from full names passed to `invite-user-ids`, and build the clickable channel link (`auth.test`)
 3. Copy the Bot User OAuth Token (`xoxb-...`).
@@ -125,17 +115,16 @@ action uses:
 ```yaml
 on:
   issues:
-    types: [opened, labeled, edited, reopened]
+    types: [opened, labeled, edited]
   pull_request:
     types: [opened]
   issue_comment:
     types: [created]
 ```
 
-If you only want channel creation/archiving and don't need reopen-unarchiving
-or the activity notifications, you can drop the `pull_request` and
-`issue_comment` triggers (and `edited`/`reopened` from `issues`) — the
-corresponding steps simply won't run.
+If you only want channel creation/archiving and don't need the activity
+notifications, you can drop the `pull_request` and `issue_comment` triggers
+(and `edited` from `issues`) — the corresponding steps simply won't run.
 
 It references this action as `carlspring/slack-channel-management-action@v1`
 — tag/publish this repo accordingly, or point at a commit SHA while
@@ -153,7 +142,6 @@ developing.
 | `private`           | no       | `true`   | Create a private channel (restricts access to invited users only).          |
 | `post-comment`      | no       | `true`   | Comment back on the issue when the channel is created or archived.          |
 | `ignore-bot-comments` | no     | `true`   | Skip relaying issue comments authored by bots to Slack.                     |
-| `unarchive-on-reopen` | no     | `true`   | Unarchive the channel when the issue is reopened.                           |
 | `github-token`      | no       | `""`     | Token used to post the issue comment (required if `post-comment` is `true`). |
 
 ## Outputs
@@ -167,9 +155,6 @@ developing.
 | `archived-channel-id`   | Slack ID of the archived channel, if archiving ran.  |
 | `archived-channel-name` | Name of the archived channel, if archiving ran.      |
 | `archive-skipped`       | `"true"` if archiving was skipped (label not present/not just added, or channel not found). |
-| `unarchived-channel-id`   | Slack ID of the unarchived channel, if unarchiving ran. |
-| `unarchived-channel-name` | Name of the unarchived channel, if unarchiving ran.     |
-| `unarchive-skipped`       | `"true"` if unarchiving was skipped (issue wasn't reopened, `unarchive-on-reopen` is false, or channel not found). |
 
 ## Requirements
 
@@ -181,8 +166,8 @@ developing.
 
 - The action is idempotent: if the channel already exists (`name_taken`), it
   looks up the existing channel and still runs invites/comment against it,
-  so re-triggers (e.g. `opened` + `labeled` firing close together, or an
-  issue being reopened) won't fail the workflow.
+  so re-triggers (e.g. the label being removed and re-added, or two
+  `labeled` deliveries racing each other) won't fail the workflow.
 - `private: true` is what restricts the channel to invited users — Slack
   private channels aren't visible or joinable by anyone else in the
   workspace.
@@ -204,30 +189,26 @@ developing.
   (not just buried at the top of history). If setting the topic fails for
   any reason (e.g. a scope issue), it's a warning, not a hard failure — the
   channel and message still get created.
-- Create and archive only fire on the specific label that was just added,
-  not just "is this label present anywhere on the issue" — so applying
-  `slack:archived` to an issue that also carries `slack` won't re-trigger
-  channel creation, and vice versa. (An exception: on the `opened` event,
-  which has no single "label that was just added", the action falls back to
-  checking whether the label is anywhere in the issue's label set — this
-  only matters if an issue is opened pre-labeled with both labels at once,
-  which is an unusual setup.)
+- Create and archive only ever fire on an actual `labeled` GitHub event
+  carrying the matching label name — never on `opened`, even if the issue
+  already has the label at creation time. This is deliberate: GitHub fires
+  a separate `labeled` webhook for every label attached during issue
+  creation, in addition to `opened`, so a rule like "trigger on `opened`
+  if the label is present" double-fires — once for `opened`, once for the
+  immediately-following `labeled` event. Relying solely on `labeled` means
+  the channel is created (or archived) exactly once, however the label got
+  there.
 - If the bot isn't a member of the channel it's trying to archive (e.g. the
   channel was created by hand rather than by this action), archiving fails
   with a clear error rather than silently no-op'ing — invite the bot to the
   channel and re-run.
-- Archiving is no longer strictly one-way: reopening the issue unarchives
-  the channel automatically (unless `unarchive-on-reopen: false`). Slack
-  itself also still lets you unarchive manually from the channel's
-  settings at any time.
-- `create`, `archive`, and `unarchive` all run on every trigger and decide
-  internally whether to act, rather than being conditionally skipped at the
-  step level — a step that GitHub Actions skips outright leaves its outputs
+- `create` and `archive` both run on every trigger and decide internally
+  whether to act, rather than being conditionally skipped at the step
+  level — a step that GitHub Actions skips outright leaves its outputs
   undefined, and undefined isn't `'true'`, which would trick a downstream
   step's `steps.x.outputs.skipped != 'true'` check into thinking it should
-  proceed. (Concretely: this is why unarchiving is *not* gated by a
-  step-level `if: github.event.action == 'reopened'` — that pattern caused
-  the "channel unarchived" comment to fire on ordinary issue creation.)
+  proceed. Any future step gated on one of these two should follow the
+  same self-guarding pattern rather than adding a step-level `if:`.
 - The three activity-notification steps (PR opened, comment posted, issue
   edited) are best-effort: unlike channel creation/archiving, a Slack API
   error there logs a `::warning::` and moves on rather than failing the

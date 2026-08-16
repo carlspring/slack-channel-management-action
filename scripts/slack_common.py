@@ -225,18 +225,14 @@ def load_event() -> dict:
 
 def label_triggered(event: dict, target_label: str) -> bool:
     """
-    True if this event should be treated as triggered by `target_label`.
+    True only if `target_label` is the specific label that was just added on
+    this event (action == 'labeled', label.name == target_label).
 
-    - action == 'labeled': only the specific label that was just added counts
-      (avoids double-firing the create step when the archive label is added
-      to an issue that already carries the create label, and vice versa).
-    - action == 'opened': falls back to checking the full label set, since
-      an issue can be opened pre-labeled and there's no single "added" label.
+    Deliberately does NOT also check the full label set on an 'opened'
+    event. It's tempting to add that as a fallback for "issue opened
+    pre-labeled" — but GitHub fires a separate 'labeled' webhook for every
+    label attached during issue creation, in addition to 'opened'. Checking
+    the label set on 'opened' too would make both events match, running
+    channel creation/archiving twice for the same label attachment.
     """
-    action = event.get("action")
-    if action == "labeled":
-        return event.get("label", {}).get("name") == target_label
-    if action == "opened":
-        labels = [label.get("name") for label in event.get("issue", {}).get("labels", [])]
-        return target_label in labels
-    return False
+    return event.get("action") == "labeled" and event.get("label", {}).get("name") == target_label
