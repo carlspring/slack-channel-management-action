@@ -2,7 +2,7 @@ name: Slack channel management for issues
 
 on:
   issues:
-    types: [opened, labeled, edited]
+    types: [opened, labeled, edited, reopened]
   pull_request:
     types: [opened]
   issue_comment:
@@ -26,4 +26,5 @@ jobs:
           private: true
           post-comment: true
           ignore-bot-comments: true
+          unarchive-on-reopen: true
           github-token: ${{ secrets.GITHUB_TOKEN }}

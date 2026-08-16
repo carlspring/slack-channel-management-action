@@ -41,6 +41,10 @@ inputs:
     description: 'Whether to skip relaying issue comments authored by bots (including this action''s own "channel created/archived" comments) to Slack.'
     required: false
     default: 'true'
+  unarchive-on-reopen:
+    description: 'Whether to unarchive the channel when the issue is reopened.'
+    required: false
+    default: 'true'
 
 outputs:
   channel-id:
@@ -64,6 +68,15 @@ outputs:
   archive-skipped:
     description: '"true" if archiving was skipped (archive label not present/not just added, or no matching channel found).'
     value: ${{ steps.archive.outputs.skipped }}
+  unarchived-channel-id:
+    description: 'Slack ID of the unarchived channel, if unarchiving ran.'
+    value: ${{ steps.unarchive.outputs.channel-id }}
+  unarchived-channel-name:
+    description: 'Name of the unarchived channel, if unarchiving ran.'
+    value: ${{ steps.unarchive.outputs.channel-name }}
+  unarchive-skipped:
+    description: '"true" if unarchiving was skipped (issue wasn''t reopened, unarchive-on-reopen is false, or no matching channel found).'
+    value: ${{ steps.unarchive.outputs.skipped }}
 
 runs:
   using: 'composite'
@@ -103,6 +116,23 @@ runs:
         CHANNEL_NAME: ${{ steps.archive.outputs.channel-name }}
         CHANNEL_URL: ${{ steps.archive.outputs.channel-url }}
       run: python3 ${{ github.action_path }}/scripts/post_archive_comment.py
+
+    - id: unarchive
+      if: github.event_name == 'issues' && github.event.action == 'reopened' && inputs.unarchive-on-reopen == 'true'
+      shell: bash
+      env:
+        SLACK_BOT_TOKEN: ${{ inputs.slack-bot-token }}
+        CHANNEL_PREFIX: ${{ inputs.channel-prefix }}
+      run: python3 ${{ github.action_path }}/scripts/unarchive_channel.py
+
+    - id: unarchive-comment
+      if: inputs.post-comment == 'true' && steps.unarchive.outputs.skipped != 'true'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        CHANNEL_NAME: ${{ steps.unarchive.outputs.channel-name }}
+        CHANNEL_URL: ${{ steps.unarchive.outputs.channel-url }}
+      run: python3 ${{ github.action_path }}/scripts/post_reopen_comment.py
 
     - id: notify-pr
       if: github.event_name == 'pull_request' && github.event.action == 'opened'
