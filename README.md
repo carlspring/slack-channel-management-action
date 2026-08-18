@@ -65,8 +65,16 @@ a repo won't have one.
 - **Pull request opened** (`pull_request: opened`) — if the PR's title or
   body references an issue (a closing keyword like `fixes #42`/`closes
   #42`/`resolves #42`, or failing that, a bare `#42`), a message is posted
-  naming the PR author and linking to the PR:
-  > 🔀 @githubUserXYZ opened a pull request for this issue: #55 : Fix login crash
+  linking to the PR, naming the author, and summarizing the PR's
+  description (its first paragraph, truncated past 400 characters — so a
+  long PR template's checklist doesn't dump into Slack):
+  > 🔀 #55 : Fix login crash opened by @githubUserXYZ
+  > > Handles the null case when the session token has already expired.
+
+  Link unfurling is turned off for this message (`unfurl_links` /
+  `unfurl_media: false`), so Slack's GitHub app doesn't also expand the
+  author's profile link into its own card underneath — the summary above
+  is the only preview you get, and it's one we control.
 - **Comment posted** (`issue_comment: created`, on issues only — not PR
   review comments) — the comment is quoted in full (truncated past 600
   characters) with a link to it and the commenter's GitHub profile:

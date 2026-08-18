@@ -160,6 +160,25 @@ def extract_referenced_issue_number(*texts: str | None) -> int | None:
     return None
 
 
+def summarize_text(text: str | None, max_chars: int = 400) -> str:
+    """
+    Build a short plain-text summary from a longer body of text (e.g. a PR
+    description): takes the first non-empty paragraph, truncated, so a huge
+    PR template doesn't dump its entire checklist into Slack.
+    """
+    if not text:
+        return "_No description provided._"
+
+    for paragraph in text.strip().split("\n\n"):
+        paragraph = paragraph.strip()
+        if paragraph:
+            if len(paragraph) > max_chars:
+                paragraph = paragraph[:max_chars].rstrip() + " \u2026"
+            return escape_slack_text(paragraph)
+
+    return "_No description provided._"
+
+
 def build_channel_name(channel_prefix: str, repo_name: str, issue_num: int) -> str:
     """Build the deterministic channel name for a given repo/issue, matching creation logic."""
     safe_repo = sanitize(repo_name)

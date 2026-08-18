@@ -24,6 +24,7 @@ from slack_common import (
     find_existing_channel_id,
     load_event,
     slack_post,
+    summarize_text,
 )
 
 
@@ -55,14 +56,21 @@ def main() -> None:
         return
 
     pr_author = pr["user"]["login"]
-    pr_author_url = f"https://github.com/{pr_author}"
     pr_url = pr["html_url"]
     pr_number = pr["number"]
     pr_title = escape_slack_text(pr.get("title"))
+    summary = summarize_text(pr.get("body"))
 
-    text = f"\U0001F500 <{pr_author_url}|@{pr_author}> opened a pull request for this issue: <{pr_url}|#{pr_number} : {pr_title}>"
+    text = (
+        f"\U0001F500 <{pr_url}|#{pr_number} : {pr_title}> opened by @{pr_author}\n"
+        f">>> {summary}"
+    )
 
-    resp = slack_post(token, "chat.postMessage", {"channel": channel_id, "text": text})
+    resp = slack_post(
+        token,
+        "chat.postMessage",
+        {"channel": channel_id, "text": text, "unfurl_links": False, "unfurl_media": False},
+    )
     if not resp.get("ok"):
         print(f"::warning::Slack API error posting PR notification: {resp.get('error')}")
 
