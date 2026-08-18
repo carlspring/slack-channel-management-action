@@ -27,4 +27,5 @@ jobs:
           post-comment: true
           ignore-bot-comments: true
           unarchive-on-reopen: true
+          notify-description-changes: false   # set true to also notify on body/description edits
           github-token: ${{ secrets.GITHUB_TOKEN }}

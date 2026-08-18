@@ -76,11 +76,20 @@ a repo won't have one.
   Comments from bots (including this action's own "channel created/archived"
   comments) are skipped by default — set `ignore-bot-comments: false` to
   include them.
-- **Issue edited** (`issues: edited`) — if the title and/or description
-  changed, a summary is posted with a link back to the issue:
+- **Issue edited** (`issues: edited`) — if the title changed, a summary is
+  posted with a link back to the issue:
   > Issue #42 was updated:
   > • Title: ~Fix login crash~ → *Fix login crash on retry*
+
+  Description (body) edits are **not** reported by default — they're
+  usually just typo fixes, formatting, or checklist ticks, and would be the
+  noisiest of these three notifications by far. Set
+  `notify-description-changes: true` to also get:
   > • Description was edited.
+
+  appended when the body changes. If neither the title changed nor
+  description notifications are enabled for a body-only edit, nothing is
+  posted at all for that event.
 
 None of these need any Slack scope beyond `chat:write`, which you already
 have for the creation message. They do need the corresponding event types
@@ -162,6 +171,7 @@ developing.
 | `post-comment`      | no       | `true`   | Comment back on the issue when the channel is created or archived.          |
 | `ignore-bot-comments` | no     | `true`   | Skip relaying issue comments authored by bots to Slack.                     |
 | `unarchive-on-reopen` | no     | `true`   | Unarchive the channel when the issue is reopened.                           |
+| `notify-description-changes` | no | `false` | Post a Slack notification when an issue's description is edited (title changes are always reported). |
 | `github-token`      | no       | `""`     | Token used to post the issue comment (required if `post-comment` is `true`). |
 
 ## Outputs

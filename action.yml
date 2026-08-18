@@ -45,6 +45,10 @@ inputs:
     description: 'Whether to unarchive the channel when the issue is reopened.'
     required: false
     default: 'true'
+  notify-description-changes:
+    description: 'Whether to post a Slack notification when an issue''s description (body) is edited. Off by default since description edits are frequent/noisy compared to title changes, which are always reported.'
+    required: false
+    default: 'false'
 
 outputs:
   channel-id:
@@ -157,5 +161,6 @@ runs:
       env:
         SLACK_BOT_TOKEN: ${{ inputs.slack-bot-token }}
         CHANNEL_PREFIX: ${{ inputs.channel-prefix }}
+        NOTIFY_DESCRIPTION_CHANGES: ${{ inputs.notify-description-changes }}
       run: python3 ${{ github.action_path }}/scripts/notify_issue_edited.py
 
