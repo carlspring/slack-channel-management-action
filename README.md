@@ -99,9 +99,21 @@ a repo won't have one.
   description notifications are enabled for a body-only edit, nothing is
   posted at all for that event.
 
-None of these need any Slack scope beyond `chat:write`, which you already
-have for the creation message. They do need the corresponding event types
-added to your workflow's `on:` block — see `examples/.github/workflows/slack-channel.yml`.
+**Duplicate protection.** GitHub's webhook delivery is "at least once," not
+"exactly once" — the same `pull_request: opened` or `issue_comment: created`
+event can occasionally be redelivered, triggering a second, fully
+independent workflow run for the same PR or comment. Since there's no
+external storage to remember what's already been posted, the PR and
+comment notifiers instead check the channel's own recent history
+(`conversations.history`) for a message already containing that PR's or
+comment's unique URL before posting, and skip if found. This needs the
+`channels:history`/`groups:history` scopes below. The issue-edited notifier
+doesn't have this guard — an edit event has no reliably unique per-event
+URL to dedup against, so a naive check there risks silently swallowing a
+second *legitimate* edit rather than a true duplicate.
+
+These notifications need the corresponding event types added to your
+workflow's `on:` block — see `examples/.github/workflows/slack-channel.yml`.
 
 ## Setup
 
@@ -113,6 +125,7 @@ added to your workflow's `on:` block — see `examples/.github/workflows/slack-c
    - `groups:write` — create private channels (needed since `private` defaults to `true`), and archive/unarchive them
    - `chat:write` — post the confirmation message
    - `users:read` — look up user IDs from full names passed to `invite-user-ids`, and build the clickable channel link (`auth.test`)
+   - `channels:history` / `groups:history` — read recent channel messages, to detect and skip duplicate PR/comment notifications caused by GitHub redelivering the same webhook event
 3. Copy the Bot User OAuth Token (`xoxb-...`).
 
 If you add scopes to an app that's already installed, you must click

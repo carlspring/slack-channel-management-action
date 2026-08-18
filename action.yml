@@ -7,7 +7,7 @@ branding:
 
 inputs:
   slack-bot-token:
-    description: 'Slack Bot User OAuth token (xoxb-...). Needs channels:manage, groups:write, chat:write, users:read scopes.'
+    description: 'Slack Bot User OAuth token (xoxb-...). Needs channels:manage, groups:write, chat:write, users:read, channels:history, groups:history scopes.'
     required: true
   label:
     description: 'GitHub issue label that triggers channel creation.'

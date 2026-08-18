@@ -24,6 +24,7 @@ from slack_common import (
     find_existing_channel_id,
     load_event,
     slack_post,
+    was_recently_posted,
 )
 
 MAX_QUOTE_CHARS = 600
@@ -65,6 +66,15 @@ def main() -> None:
     author_url = f"https://github.com/{author}"
     comment_url = comment.get("html_url") or issue.get("html_url", "")
     body = comment.get("body") or ""
+
+    # GitHub can redeliver the same 'created' webhook, triggering a second,
+    # independent workflow run for the same comment. comment.html_url is
+    # unique per comment, so it doubles as the dedup marker — but only the
+    # real per-comment URL, not the issue-URL fallback above, which isn't
+    # unique and would wrongly suppress genuinely distinct comments.
+    if comment.get("html_url") and was_recently_posted(token, channel_id, comment["html_url"]):
+        print(f"A notification for {comment['html_url']} was posted recently; skipping likely duplicate delivery.")
+        return
 
     truncated = len(body) > MAX_QUOTE_CHARS
     if truncated:

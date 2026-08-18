@@ -25,6 +25,7 @@ from slack_common import (
     load_event,
     slack_post,
     summarize_text,
+    was_recently_posted,
 )
 
 
@@ -60,6 +61,13 @@ def main() -> None:
     pr_number = pr["number"]
     pr_title = escape_slack_text(pr.get("title"))
     summary = summarize_text(pr.get("body"))
+
+    # GitHub can redeliver the same 'opened' webhook, triggering a second,
+    # independent workflow run for the same PR. pr_url is unique per PR, so
+    # it doubles as the dedup marker.
+    if was_recently_posted(token, channel_id, pr_url):
+        print(f"A notification for {pr_url} was posted recently; skipping likely duplicate delivery.")
+        return
 
     text = (
         f"\U0001F500 <{pr_url}|#{pr_number} : {pr_title}> opened by @{pr_author}\n"

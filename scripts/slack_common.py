@@ -210,6 +210,34 @@ def find_existing_channel_id(token: str, name: str) -> str | None:
             return None
 
 
+def was_recently_posted(token: str, channel_id: str, marker: str, lookback: int = 30) -> bool:
+    """
+    Check the channel's recent history for a message containing `marker`
+    (e.g. a PR's or comment's html_url, which is unique per event).
+
+    GitHub's webhook delivery is "at least once", not "exactly once" — the
+    same event can be redelivered and independently trigger a full workflow
+    run. There's no event ID we can persist between runs (no external
+    storage), so this checks Slack itself as the source of truth: if a
+    message referencing this exact URL was already posted recently, treat
+    the current run as a duplicate delivery and skip posting again.
+
+    Fails open (returns False, i.e. "not a duplicate, go ahead and post")
+    if the history lookup itself errors, since a missed dedup check is far
+    less disruptive than silently dropping a real notification.
+    """
+    result = slack_get(token, "conversations.history", {"channel": channel_id, "limit": str(lookback)})
+    if not result.get("ok"):
+        print(f"::warning::Slack API error checking channel history for duplicates: {result.get('error')}; proceeding without dedup check.")
+        return False
+
+    for message in result.get("messages", []):
+        if marker in message.get("text", ""):
+            return True
+
+    return False
+
+
 def get_workspace_url(token: str) -> str:
     """Return the workspace's base URL (e.g. 'https://myteam.slack.com/') via auth.test."""
     result = slack_get(token, "auth.test", {})
